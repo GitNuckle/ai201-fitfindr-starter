@@ -86,6 +86,14 @@ If outfit data is incomplete then increase LLM temperature.
 ## Planning Loop
 
 **How does your agent decide which tool to call next?**
+
+If search_listings returns [] → save error to session["error"], STOP.
+If search_listings returns results → save results[0] to session["selected_item"], 
+call suggest_outfit(selected_item, wardrobe) → save result to outfit_suggestion, 
+call create_fit_card(outfit_suggestion, selected_item) → save result to fit_card, 
+return session. The agent only proceeds to the next tool if the previous one 
+succeeded — it never calls all three unconditionally.
+
 <!-- Describe the logic your planning loop uses. What does it look at? What conditions change its behavior? How does it know when it's done? -->
 
 ---
@@ -93,6 +101,13 @@ If outfit data is incomplete then increase LLM temperature.
 ## State Management
 
 **How does information from one tool get passed to the next?**
+
+All data lives in a session dict created once per interaction. selected_item is 
+saved after search_listings runs and passed directly into suggest_outfit. 
+outfit_suggestion is saved after suggest_outfit runs and passed directly into 
+create_fit_card. Nothing is re entered by the user each tool reads over what the
+ previous tool wrote in the session.
+
 <!-- Describe how your agent stores and accesses state within a session. What data is tracked? How is it passed between tool calls? -->
 
 ---
@@ -103,9 +118,9 @@ For each tool, describe the specific failure mode you're handling and what the a
 
 | Tool | Failure mode | Agent response |
 |------|-------------|----------------|
-| search_listings | No results match the query | |
-| suggest_outfit | Wardrobe is empty | |
-| create_fit_card | Outfit input is missing or incomplete | |
+| search_listings | No results match the query | Returns [], sets session["error"] to "Try a different price or size" and stops before calling other tools |
+| suggest_outfit | Wardrobe is empty | Returns general styling advice instead of specific outfit combinations |
+| create_fit_card | Outfit input is missing or incomplete | Returns "Could not generate fit card: no outfit suggestion provided" |
 
 ---
 
@@ -168,7 +183,7 @@ Planning Loop ──────────────────────
      I'll use Claude. I'll paste my Tool 1 spec (description, size, max_price inputs, 
      returns [] on no match, error message "Try a different price or size") and say: 
      "Implement search_listings() using load_listings() from data_loader.py. Filter by 
-     all 3 parameters. Return [] if nothing matches — no exceptions."
+     all 3 parameters. Return [] if nothing matches no exceptions."
      I'll verify by running it with 3 queries: one that should find results, one with 
      an impossible price, one with a size that doesn't exist.
 
@@ -184,7 +199,7 @@ Planning Loop ──────────────────────
 **Tool 3 — create_fit_card:**
 
      I'll use Claude. I'll paste my Tool 3 spec (outfit str, new_item dict inputs, 
-     returns Instagram-style caption) and say: "Implement create_fit_card() using Groq 
+     returns Instagram style caption) and say: "Implement create_fit_card() using Groq 
      llama-3.3-70b-versatile. If outfit is an empty string, return 'Could not generate 
      fit card: no outfit suggestion provided' — no exceptions."
      I'll verify by running it 3 times on the same input to confirm outputs vary, and 
@@ -211,9 +226,13 @@ Planning Loop ──────────────────────
      before trusting it" is a plan. -->
 
 **Milestone 3 — Individual tool implementations:**
+Used Claude to implement all tools using each tool's spec block. Tested each one through the terminal.
 
 **Milestone 4 — Planning loop and state management:**
-
+Used Claude with the architecture diagram and planning loop section to implement 
+run_agent(). Verified state was flowing correctly by printing selected_item and 
+outfit_suggestion at each step and confirming they matched what was passed into 
+the next tool.
 ---
 
 ## A Complete Interaction (Step by Step)

@@ -21,6 +21,34 @@ from utils.data_loader import get_example_wardrobe, get_empty_wardrobe
 # ── query handler ─────────────────────────────────────────────────────────────
 
 def handle_query(user_query: str, wardrobe_choice: str) -> tuple[str, str, str]:
+
+
+    if not user_query.strip():
+        return "Please enter a search query.", "", ""
+
+    if wardrobe_choice == "Example wardrobe":
+        wardrobe = get_example_wardrobe()
+    else:
+        wardrobe = get_empty_wardrobe()
+
+    session = run_agent(user_query, wardrobe)
+
+    if session.get("error"):
+        return session["error"], "", ""
+
+    item = session["selected_item"]
+    listing_text = (
+        f"{item['title']}\n"
+        f"Price: ${item['price']}\n"
+        f"Size: {item['size']}\n"
+        f"Condition: {item['condition']}\n"
+        f"Platform: {item['platform']}\n"
+        f"Brand: {item.get('brand', 'Unknown')}"
+    )
+
+    return listing_text, session["outfit_suggestion"], session["fit_card"]
+
+    
     """
     Called by Gradio when the user submits a query.
 
