@@ -41,6 +41,37 @@ def search_listings(
     size: str | None = None,
     max_price: float | None = None,
 ) -> list[dict]:
+    
+    try:
+        listings = load_listings()
+        results = []
+
+        for item in listings:
+            # Filter by size
+            if size and size.lower() not in item.get("size", "").lower():
+                continue
+            # Filter by price
+            if max_price and item.get("price", 0) > max_price:
+                continue
+
+            # Score by keyword overlap
+            desc_words = description.lower().split()
+            searchable = (
+                item.get("title", "").lower() + " " +
+                item.get("description", "").lower() + " " +
+                " ".join(item.get("style_tags", []))
+            )
+            score = sum(1 for word in desc_words if word in searchable)
+            if score > 0:
+                results.append((score, item))
+
+        # Sort by score, return just the dicts
+        results.sort(key=lambda x: x[0], reverse=True)
+        return [item for _, item in results]
+
+    except Exception:
+        return []
+
     """
     Search the mock listings dataset for items matching the description,
     optional size, and optional price ceiling.
@@ -76,6 +107,43 @@ def search_listings(
 # ── Tool 2: suggest_outfit ────────────────────────────────────────────────────
 
 def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
+
+
+    try:
+        client = _get_groq_client()
+        wardrobe_items = wardrobe.get("items", [])
+
+        if not wardrobe_items:
+            prompt = (
+                f"I just thrifted a {new_item.get('title')}. "
+                f"It's described as: {new_item.get('description')}. "
+                f"Give me general styling advice — what kinds of pieces pair well "
+                f"with this and what vibe does it suit?"
+            )
+        else:
+            wardrobe_text = "\n".join(
+                f"- {i.get('name')}: {i.get('description', '')}"
+                for i in wardrobe_items
+            )
+            prompt = (
+                f"I just thrifted a {new_item.get('title')}. "
+                f"It's described as: {new_item.get('description')}. "
+                f"Here's my current wardrobe:\n{wardrobe_text}\n"
+                f"Suggest 1-2 complete outfit combinations using this new item "
+                f"and specific pieces from my wardrobe."
+            )
+
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=300,
+        )
+        return response.choices[0].message.content
+
+    except Exception as e:
+        return f"Could not generate outfit suggestion: {str(e)}"
+
+
     """
     Given a thrifted item and the user's wardrobe, suggest 1–2 complete outfits.
 
@@ -107,6 +175,33 @@ def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
 # ── Tool 3: create_fit_card ───────────────────────────────────────────────────
 
 def create_fit_card(outfit: str, new_item: dict) -> str:
+
+    if not outfit or not outfit.strip():
+        return "Could not generate fit card: no outfit suggestion provided."
+
+    try:
+        client = _get_groq_client()
+        prompt = (
+            f"Write a short 2-3 sentence Instagram caption for this thrifted outfit. "
+            f"The item is a {new_item.get('title')} bought on {new_item.get('platform')} "
+            f"for ${new_item.get('price')}. "
+            f"The outfit: {outfit}. "
+            f"Make it casual, authentic, and specific — like a real OOTD post. "
+            f"Mention the item name, price, and platform naturally."
+        )
+
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=150,
+            temperature=1.2,
+        )
+        return response.choices[0].message.content
+
+    except Exception as e:
+        return f"Could not generate fit card: {str(e)}"
+
+
     """
     Generate a short, shareable outfit caption for the thrifted find.
 
